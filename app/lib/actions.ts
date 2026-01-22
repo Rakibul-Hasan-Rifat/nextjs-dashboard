@@ -23,7 +23,7 @@ const FormSchema = z.object({
 const CreateInvoiceSchema = FormSchema.omit({ id: true, date: true });
 
 export type State = {
-    errors?: {
+  errors?: {
     customerId?: string[];
     amount?: string[];
     status?: string[];
@@ -47,9 +47,9 @@ export async function createInvoice(prevState: State, formData: FormData) {
   const amountInCents = amount * 100;
   const date = new Date().toISOString().split('T')[0];
 
-   // Insert data into the database
+  // Insert data into the database
   try {
-  await sql`
+    await sql`
     INSERT INTO invoices (customer_id, amount, status, date)
     VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
   `;
@@ -60,30 +60,39 @@ export async function createInvoice(prevState: State, formData: FormData) {
     });
   }
 
-    // Revalidate the cache for the invoices page and redirect the user.
+  // Revalidate the cache for the invoices page and redirect the user.
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
 
 const UpdateInvoiceSchema = FormSchema.omit({ id: true, date: true })
 
-export async function updateInvoice(id: string, formData: FormData) {
-  const { customerId, amount, status } = UpdateInvoiceSchema.parse(Object.fromEntries(formData.entries()));
+export async function updateInvoice(id: string, prevState: State, formData: FormData) {
+  const validatedFields = UpdateInvoiceSchema.safeParse(Object.fromEntries(formData.entries()));
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Update Invoice.',
+    };
+  }
+
+  const { amount, customerId, status } = validatedFields.data;
 
   const amountInCents = amount * 100;
 
-try {
-  await sql`
+  try {
+    await sql`
   UPDATE invoices
   SET customer_id = ${customerId},
       amount = ${amountInCents},
       status = ${status}
   WHERE id = ${id};
   `;
-} catch (error) {
+  } catch (error) {
     // We'll also log the error to the console for now
     console.error(error, { message: 'Database Error: Failed to Update Invoice.' });
-}
+  }
 
 
   revalidatePath('/dashboard/invoices');
